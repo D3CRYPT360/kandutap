@@ -1,3 +1,4 @@
+// Define the props interface directly
 interface FlowControlsProps {
   isFlowing: boolean;
   onStart: () => void;

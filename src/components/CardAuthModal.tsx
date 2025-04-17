@@ -1,3 +1,8 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+
+// Define the props interface directly
 interface CardAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -5,6 +10,7 @@ interface CardAuthModalProps {
 }
 
 export const CardAuthModal = ({ isOpen, onClose, onSubmit }: CardAuthModalProps) => {
+  const router = useRouter();
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
@@ -45,9 +51,8 @@ export const CardAuthModal = ({ isOpen, onClose, onSubmit }: CardAuthModalProps)
             
             <button
               type="button"
-              onClick={onClose}
-              className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl 
-              text-blue-200 font-medium transition-colors"
+              onClick={() => router.push('/')}
+              className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-blue-200 font-medium transition-colors"
             >
               Cancel
             </button>

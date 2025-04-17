@@ -41,10 +41,13 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const { cardId, balance } = await request.json();
-    db.prepare('UPDATE cards SET balance = ? WHERE id = ?').run(balance, cardId);
-    return NextResponse.json({ success: true });
+    const { id, balance } = await request.json();
+    console.log('Updating card balance:', { id, balance });
+    const result = db.prepare('UPDATE cards SET balance = ? WHERE id = ?').run(balance, id);
+    console.log('Update result:', result);
+    return NextResponse.json({ success: true, changes: result.changes });
   } catch (error) {
+    console.error('Error updating card balance:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 400 }

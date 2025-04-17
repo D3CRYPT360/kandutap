@@ -83,22 +83,32 @@ export default function Home() {
 
       // Update card balance
       if (balance !== null && pendingBalance !== null) {
-        const balanceResponse = await fetch('/api/cards', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: currentCardId,
-            balance: pendingBalance,
-          }),
-        });
+        try {
+          console.log('Sending balance update to API:', { id: currentCardId, balance: pendingBalance });
+          const balanceResponse = await fetch('/api/cards', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              id: currentCardId,
+              balance: pendingBalance,
+            }),
+          });
 
-        if (!balanceResponse.ok) {
+          const balanceResult = await balanceResponse.json();
+          console.log('Balance update response:', balanceResult);
+          
+          if (!balanceResponse.ok) {
+            throw new Error(balanceResult.error || 'Failed to update balance');
+          }
+
+          setBalance(pendingBalance);
+          console.log('Balance updated successfully to:', pendingBalance);
+        } catch (balanceError) {
+          console.error('Balance update error:', balanceError);
           throw new Error('Failed to update balance');
         }
-
-        setBalance(pendingBalance);
       }
     } catch (error) {
       console.error('Error saving pump history:', error);
@@ -142,9 +152,45 @@ export default function Home() {
 
   const handleStop = async () => {
     setIsFlowing(false);
-    await savePumpHistory(totalLiters, lastPumpCost);
+    // Make sure we save the current pendingBalance before resetting it
+    const finalCost = lastPumpCost;
+    const finalLiters = totalLiters;
+    const finalPendingBalance = pendingBalance;
+    
+    // Reset UI values
     setTotalLiters(0);
     setFlowRate(0);
+    
+    // Save pump history with the correct balance
+    if (finalLiters > 0 && finalCost > 0) {
+      // Only update balance in DB if we actually pumped something
+      await savePumpHistory(finalLiters, finalCost);
+      // Update local balance state after DB update is complete
+      if (finalPendingBalance !== null) {
+        setBalance(finalPendingBalance);
+      }
+      
+      // Set a timer to redirect to home page after 5 seconds
+      const redirectTimer = setTimeout(() => {
+        // Reset card authentication state
+        setCurrentCardId(null);
+        setIsCardAuthenticated(false);
+        setBalance(null);
+        setPendingBalance(null);
+        // Show the card auth modal again
+        setIsCardAuthModalOpen(true);
+        
+        console.log('Session completed - returning to card authentication');
+      }, 5000);
+      
+      // Display a message about the redirect
+      setError('✅ Pumping completed. Returning to card authentication in 5 seconds...');
+      
+      // Clean up timer if component unmounts
+      return () => clearTimeout(redirectTimer);
+    }
+    
+    // Reset pending balance to match current balance
     setPendingBalance(balance);
   };
 
@@ -152,7 +198,7 @@ export default function Home() {
     <main className="min-h-screen p-8 bg-gradient-to-b from-blue-900 via-blue-800 to-cyan-800">
       <div className="max-w-md mx-auto space-y-4">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-white">Kandutap</h1>
+          <h1 className="text-3xl font-bold text-white">Kandutap 🚿</h1>
           <div className="flex gap-4">
             <Link 
               href="/admin" 
@@ -169,11 +215,15 @@ export default function Home() {
           </div>
         </div>
 
-        {error && (
+        {error && error.startsWith('✅') ? (
+          <div className="w-full max-w-md bg-green-500/20 text-green-100 px-4 py-3 rounded-xl">
+            {error}
+          </div>
+        ) : error ? (
           <div className="w-full max-w-md bg-red-500/20 text-red-100 px-4 py-3 rounded-xl">
             {error}
           </div>
-        )}
+        ) : null}
         
         <div className="w-full max-w-md space-y-8">
           {balance !== null && (
@@ -196,11 +246,7 @@ export default function Home() {
             onLiterLimitChange={setLiterLimit}
           />
 
-          {error && (
-            <div className="p-3 text-red-800 bg-red-100 rounded">
-              {error}
-            </div>
-          )}
+          {/* Removed duplicate error display */}
 
           {isCardAuthenticated && <PumpHistory cardId={currentCardId} />}
 

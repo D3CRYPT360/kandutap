@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+// Define the interfaces directly
 interface PumpRecord {
   id: number;
   liters: number;

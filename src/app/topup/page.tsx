@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { CardAuthModal } from '@/components/CardAuthModal';
+import { TopUpModal } from '@/components/TopUpModal';
 
+// Define interfaces directly
 interface TopUp {
   id: number;
   amount: number;
@@ -22,6 +24,7 @@ export default function TopUpDashboard() {
   const [topUps, setTopUps] = useState<TopUp[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
 
   const handleCardAuth = async (cardId: string) => {
     try {
@@ -114,6 +117,12 @@ export default function TopUpDashboard() {
                 >
                   Top Up
                 </button>
+                <button
+                  onClick={() => setIsTopUpModalOpen(true)}
+                  className="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white font-medium transition-colors"
+                >
+                  Quick Top-Up
+                </button>
               </div>
             </div>
 
@@ -147,6 +156,15 @@ export default function TopUpDashboard() {
         isOpen={isCardAuthModalOpen}
         onClose={() => card && setIsCardAuthModalOpen(false)}
         onSubmit={handleCardAuth}
+      />
+      <TopUpModal
+        isOpen={isTopUpModalOpen}
+        onClose={() => setIsTopUpModalOpen(false)}
+        onTopUp={(amount) => {
+          setAmount(String(amount));
+          setIsTopUpModalOpen(false);
+          setTimeout(() => handleTopUp(), 0);
+        }}
       />
     </div>
   );

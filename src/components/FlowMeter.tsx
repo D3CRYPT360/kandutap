@@ -1,3 +1,4 @@
+// Define the props interface directly
 interface FlowMeterProps {
   isFlowing: boolean;
   flowRate: number;
