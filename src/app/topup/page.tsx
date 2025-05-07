@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { CardAuthModal } from '@/components/CardAuthModal';
 import { TopUpModal } from '@/components/TopUpModal';
+import { topUpApi } from '@/lib/api';
 
 // Define interfaces directly
 interface TopUp {
@@ -28,12 +29,8 @@ export default function TopUpDashboard() {
 
   const handleCardAuth = async (cardId: string) => {
     try {
-      const response = await fetch(`/api/topups?id=${cardId}`);
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to authenticate card');
-      }
-      const data = await response.json();
+      // Use the API service to get top-ups
+      const data = await topUpApi.getTopUps(cardId);
       setCard(data.card);
       setTopUps(data.topUps);
       setIsCardAuthModalOpen(false);
@@ -47,20 +44,11 @@ export default function TopUpDashboard() {
     if (!card || !amount) return;
 
     try {
-      const response = await fetch('/api/topups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardId: card.id, amount: Number(amount) })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to process top-up');
-      }
+      // Use the API service to create a top-up
+      await topUpApi.createTopUp(card.id, Number(amount));
 
       // Refresh top-up history
-      const historyResponse = await fetch(`/api/topups?id=${card.id}`);
-      const data = await historyResponse.json();
+      const data = await topUpApi.getTopUps(card.id);
       setCard(data.card);
       setTopUps(data.topUps);
       setAmount('');

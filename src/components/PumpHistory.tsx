@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { pumpHistoryApi } from '@/lib/api';
 
 // Define the interfaces directly
 interface PumpRecord {
@@ -21,9 +22,7 @@ export function PumpHistory({ cardId }: PumpHistoryProps) {
       if (!cardId) return;
       try {
         setLoading(true);
-        const response = await fetch(`/api/pump-history?id=${cardId}`);
-        if (!response.ok) throw new Error('Failed to fetch history');
-        const data = await response.json();
+        const data = await pumpHistoryApi.getHistory(cardId);
         setHistory(data.history);
       } catch (error) {
         console.error('Error fetching pump history:', error);

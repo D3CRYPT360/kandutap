@@ -16,6 +16,9 @@ import {
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import Link from 'next/link';
 import { AddCardForm } from '@/components/AddCardForm';
+import { AdminAuthWrapper } from '@/components/AdminAuthWrapper';
+import { cardApi, adminApi } from '@/lib/api';
+import type { AdminStats } from '@/types';
 
 // Register ChartJS components
 ChartJS.register(
@@ -30,26 +33,24 @@ ChartJS.register(
   ArcElement
 );
 
-import type { AdminStats } from '@/types';
-
-export default function AdminDashboard() {
+function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'addCard'>('dashboard');
   const [addCardLoading, setAddCardLoading] = useState(false);
   const [addCardError, setAddCardError] = useState<string | null>(null);
   const [addCardSuccess, setAddCardSuccess] = useState<string | null>(null);
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('adminAuthenticated');
+    window.location.href = '/';
+  };
 
   const handleAddCard = async (cardId: string, initialBalance: number) => {
     setAddCardLoading(true);
     setAddCardError(null);
     setAddCardSuccess(null);
     try {
-      const res = await fetch('/api/cards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardId, initialBalance })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to add card');
+      // Use the API service to create a new card
+      await cardApi.createCard(cardId, initialBalance);
       setAddCardSuccess('Card added successfully!');
     } catch (err: any) {
       setAddCardError(err.message || 'Failed to add card');
@@ -57,6 +58,7 @@ export default function AdminDashboard() {
       setAddCardLoading(false);
     }
   };
+
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,10 +66,18 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/admin/stats');
-        if (!response.ok) throw new Error('Failed to fetch stats');
-        const data = await response.json();
-        setStats(data);
+        // Use the API service to get admin cards
+        const data = await adminApi.getCards();
+        
+        // Create default structure if properties are missing
+        const processedData: AdminStats = {
+          totals: data.totals || { totalRevenue: 0, totalLiters: 0, totalPumps: 0 },
+          dailyStats: data.dailyStats || [],
+          topCards: data.topCards || [],
+          hourlyDistribution: data.hourlyDistribution || []
+        };
+        
+        setStats(processedData);
       } catch (err) {
         setError('Failed to load statistics');
         console.error(err);
@@ -78,11 +88,10 @@ export default function AdminDashboard() {
 
     fetchStats();
   }, []);
-
-  // Tab Navigation
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-900 via-blue-800 to-cyan-800 p-8">
-      <div className="flex space-x-4 mb-8">
+      <div className="flex justify-between items-center mb-8">
+        <div className="flex space-x-4">
         <button
           className={`px-6 py-3 rounded-xl font-semibold transition-colors ${activeTab === 'dashboard' ? 'bg-cyan-600 text-white' : 'bg-white/10 text-blue-100 hover:bg-white/20'}`}
           onClick={() => setActiveTab('dashboard')}
@@ -94,6 +103,13 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab('addCard')}
         >
           Add Card
+        </button>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-colors"
+        >
+          Logout
         </button>
       </div>
 
@@ -133,12 +149,15 @@ export default function AdminDashboard() {
             },
           };
 
+          // Ensure dailyStats exists and has items
+          const dailyStats = stats.dailyStats || [];
+          
           const revenueData = {
-            labels: stats.dailyStats.map(day => new Date(day.date).toLocaleDateString()),
+            labels: dailyStats.map((day: { date: string }) => new Date(day.date).toLocaleDateString()),
             datasets: [
               {
                 label: 'Daily Revenue (MVR)',
-                data: stats.dailyStats.map(day => day.revenue),
+                data: dailyStats.map((day: { revenue: number }) => day.revenue || 0),
                 borderColor: 'rgb(56, 189, 248)',
                 backgroundColor: 'rgba(56, 189, 248, 0.5)',
                 tension: 0.4,
@@ -147,11 +166,11 @@ export default function AdminDashboard() {
           };
 
           const volumeData = {
-            labels: stats.dailyStats.map(day => new Date(day.date).toLocaleDateString()),
+            labels: dailyStats.map((day: { date: string }) => new Date(day.date).toLocaleDateString()),
             datasets: [
               {
                 label: 'Daily Volume (L)',
-                data: stats.dailyStats.map(day => day.liters),
+                data: dailyStats.map((day: { liters: number }) => day.liters || 0),
                 borderColor: 'rgb(52, 211, 153)',
                 backgroundColor: 'rgba(52, 211, 153, 0.5)',
                 tension: 0.4,
@@ -159,23 +178,29 @@ export default function AdminDashboard() {
             ],
           };
 
+          // Ensure hourlyDistribution exists and has items
+          const hourlyDistribution = stats.hourlyDistribution || [];
+          
           const hourlyData = {
-            labels: stats.hourlyDistribution.map(h => `${h.hour}:00`),
+            labels: hourlyDistribution.map((h: { hour: string }) => `${h.hour}:00`),
             datasets: [
               {
                 label: 'Pumps by Hour',
-                data: stats.hourlyDistribution.map(h => h.count),
+                data: hourlyDistribution.map((h: { count: number }) => h.count || 0),
                 backgroundColor: 'rgba(251, 146, 60, 0.7)',
               },
             ],
           };
 
+          // Ensure topCards exists and has items
+          const topCards = stats.topCards || [];
+          
           const topCardsData = {
-            labels: stats.topCards.map(card => `Card ${card.card_id}`),
+            labels: topCards.map((card: { card_id: string }) => `Card ${card.card_id || 'Unknown'}`),
             datasets: [
               {
                 label: 'Usage Distribution',
-                data: stats.topCards.map(card => card.totalLiters),
+                data: topCards.map((card: { totalLiters: number }) => card.totalLiters || 0),
                 backgroundColor: [
                   'rgba(56, 189, 248, 0.7)',
                   'rgba(52, 211, 153, 0.7)',
@@ -263,7 +288,7 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10">
-                      {stats.topCards.map((card) => (
+                      {(stats.topCards || []).map((card: { card_id: string; totalLiters: number; totalSpent: number; totalPumps: number }) => (
                         <tr key={card.card_id} className="hover:bg-white/5">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                             {card.card_id}
@@ -298,4 +323,11 @@ export default function AdminDashboard() {
     </div>
   );
 }
- 
+
+export default function AdminDashboardPage() {
+  return (
+    <AdminAuthWrapper>
+      <AdminDashboard />
+    </AdminAuthWrapper>
+  );
+}

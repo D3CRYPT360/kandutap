@@ -7,6 +7,7 @@ import { FlowMeter } from '@/components/FlowMeter';
 import { CardAuthModal } from '@/components/CardAuthModal';
 import { PumpHistory } from '@/components/PumpHistory';
 import Link from 'next/link';
+import { cardApi, pumpHistoryApi } from '@/lib/api';
 
 export default function Home() {
   const [balance, setBalance] = useState<number | null>(null);
@@ -65,76 +66,47 @@ export default function Home() {
     
     setIsSavingPump(true);
     try {
-      const response = await fetch('/api/pump-history', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cardId: currentCardId,
-          liters,
-          cost
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save pump history');
-      }
+      // Save pump history using the API service
+      await pumpHistoryApi.savePumpHistory(currentCardId, liters, cost);
 
       // Update card balance
       if (balance !== null && pendingBalance !== null) {
         try {
           console.log('Sending balance update to API:', { id: currentCardId, balance: pendingBalance });
-          const balanceResponse = await fetch('/api/cards', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              id: currentCardId,
-              balance: pendingBalance,
-            }),
-          });
-
-          const balanceResult = await balanceResponse.json();
+          
+          // Update balance using the API service
+          const balanceResult = await cardApi.updateBalance(currentCardId, pendingBalance);
           console.log('Balance update response:', balanceResult);
           
-          if (!balanceResponse.ok) {
-            throw new Error(balanceResult.error || 'Failed to update balance');
-          }
-
           setBalance(pendingBalance);
           console.log('Balance updated successfully to:', pendingBalance);
         } catch (balanceError) {
           console.error('Balance update error:', balanceError);
-          throw new Error('Failed to update balance');
+          setError('Failed to update balance. Please try again.');
         }
       }
     } catch (error) {
       console.error('Error saving pump history:', error);
-      setError('Failed to save pump record');
+      setError('Failed to save pump history. Please try again.');
     } finally {
       setIsSavingPump(false);
     }
   };
 
   const handleCardAuth = async (cardId: string) => {
+    setError(null);
     try {
-      const response = await fetch(`/api/cards?id=${cardId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setCurrentCardId(cardId);
-        setBalance(data.balance);
-        setPendingBalance(data.balance);
-        setIsCardAuthenticated(true);
-        setIsCardAuthModalOpen(false);
-        setError(null);
-      } else {
-        throw new Error('Invalid card');
-      }
+      // Get card balance using the API service
+      const data = await cardApi.getBalance(cardId);
+      
+      setCurrentCardId(cardId);
+      setBalance(data.balance);
+      setPendingBalance(data.balance);
+      setIsCardAuthenticated(true);
+      setIsCardAuthModalOpen(false);
     } catch (error) {
-      console.error('Error authenticating card:', error);
-      setError('Invalid card ID. Please try again.');
+      console.error('Card authentication error:', error);
+      setError('Failed to authenticate card. Please try again.');
     }
   };
 
@@ -200,12 +172,6 @@ export default function Home() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-white">Kandutap 🚿</h1>
           <div className="flex gap-4">
-            <Link 
-              href="/admin" 
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
-            >
-              Admin Panel
-            </Link>
             <Link 
               href="/topup" 
               className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white transition-colors"
