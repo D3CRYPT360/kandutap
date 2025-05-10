@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { BalanceDisplay } from '@/components/BalanceDisplay';
-import { FlowControls } from '@/components/FlowControls';
-import { FlowMeter } from '@/components/FlowMeter';
-import { CardAuthModal } from '@/components/CardAuthModal';
-import { PumpHistory } from '@/components/PumpHistory';
-import Link from 'next/link';
-import { cardApi, pumpHistoryApi } from '@/lib/api';
+import { useState, useEffect } from "react";
+import { BalanceDisplay } from "@/components/BalanceDisplay";
+import { FlowControls } from "@/components/FlowControls";
+import { FlowMeter } from "@/components/FlowMeter";
+import { CardAuthModal } from "@/components/CardAuthModal";
+import { PumpHistory } from "@/components/PumpHistory";
+import Link from "next/link";
+import { cardApi, pumpHistoryApi } from "@/lib/api";
 
 export default function Home() {
   const [balance, setBalance] = useState<number | null>(null);
@@ -31,8 +31,8 @@ export default function Home() {
       const rate = 2 + Math.random() * 0.5; // Random flow rate between 2-2.5 L/min
       setFlowRate(rate);
 
-      setTotalLiters(prev => {
-        const newTotal = Math.round((prev + (rate / 60)) * 100) / 100; // Round to 2 decimal places
+      setTotalLiters((prev) => {
+        const newTotal = Math.round((prev + rate / 60) * 100) / 100; // Round to 2 decimal places
         if (literLimit > 0 && newTotal >= literLimit) {
           setIsFlowing(false);
           if (balance !== null) {
@@ -50,7 +50,7 @@ export default function Home() {
         }
         return newTotal;
       });
-      
+
       // Stop flow if balance is depleted
       if (pendingBalance !== null && pendingBalance <= 0) {
         setIsFlowing(false);
@@ -59,11 +59,18 @@ export default function Home() {
     }, 1000);
 
     return () => clearInterval(flowInterval);
-  }, [isFlowing, balance, pendingBalance, literLimit, totalLiters, lastPumpCost]);
+  }, [
+    isFlowing,
+    balance,
+    pendingBalance,
+    literLimit,
+    totalLiters,
+    lastPumpCost,
+  ]);
 
   const savePumpHistory = async (liters: number, cost: number) => {
     if (isSavingPump || !currentCardId || liters === 0) return;
-    
+
     setIsSavingPump(true);
     try {
       // Save pump history using the API service
@@ -72,22 +79,28 @@ export default function Home() {
       // Update card balance
       if (balance !== null && pendingBalance !== null) {
         try {
-          console.log('Sending balance update to API:', { id: currentCardId, balance: pendingBalance });
-          
+          console.log("Sending balance update to API:", {
+            id: currentCardId,
+            balance: pendingBalance,
+          });
+
           // Update balance using the API service
-          const balanceResult = await cardApi.updateBalance(currentCardId, pendingBalance);
-          console.log('Balance update response:', balanceResult);
-          
+          const balanceResult = await cardApi.updateBalance(
+            currentCardId,
+            pendingBalance
+          );
+          console.log("Balance update response:", balanceResult);
+
           setBalance(pendingBalance);
-          console.log('Balance updated successfully to:', pendingBalance);
+          console.log("Balance updated successfully to:", pendingBalance);
         } catch (balanceError) {
-          console.error('Balance update error:', balanceError);
-          setError('Failed to update balance. Please try again.');
+          console.error("Balance update error:", balanceError);
+          setError("Failed to update balance. Please try again.");
         }
       }
     } catch (error) {
-      console.error('Error saving pump history:', error);
-      setError('Failed to save pump history. Please try again.');
+      console.error("Error saving pump history:", error);
+      setError("Failed to save pump history. Please try again.");
     } finally {
       setIsSavingPump(false);
     }
@@ -98,15 +111,43 @@ export default function Home() {
     try {
       // Get card balance using the API service
       const data = await cardApi.getBalance(cardId);
-      
+
+      // Check if card is disabled
+      if (data.status === "disabled") {
+        setError(
+          "This card has been disabled. Please contact an administrator."
+        );
+        return;
+      }
+
       setCurrentCardId(cardId);
       setBalance(data.balance);
       setPendingBalance(data.balance);
       setIsCardAuthenticated(true);
       setIsCardAuthModalOpen(false);
-    } catch (error) {
-      console.error('Card authentication error:', error);
-      setError('Failed to authenticate card. Please try again.');
+    } catch (error: any) {
+      console.error("Card authentication error:", error);
+
+      // Extract the error message from the backend response if available
+      if (error.message && typeof error.message === "string") {
+        // Check if the error message contains a JSON string
+        try {
+          // The error message might contain a JSON string with the actual error message
+          const errorData = JSON.parse(error.message.replace("Error: ", ""));
+          if (errorData && errorData.error) {
+            setError(errorData.error);
+            return;
+          }
+        } catch (parseError) {
+          // If parsing fails, it's not a JSON string
+        }
+
+        // If we couldn't parse JSON or there was no error property, use the message directly
+        setError(error.message);
+      } else {
+        // Fallback to generic error message
+        setError("Failed to authenticate card. Please try again.");
+      }
     }
   };
 
@@ -128,11 +169,11 @@ export default function Home() {
     const finalCost = lastPumpCost;
     const finalLiters = totalLiters;
     const finalPendingBalance = pendingBalance;
-    
+
     // Reset UI values
     setTotalLiters(0);
     setFlowRate(0);
-    
+
     // Save pump history with the correct balance
     if (finalLiters > 0 && finalCost > 0) {
       // Only update balance in DB if we actually pumped something
@@ -141,7 +182,7 @@ export default function Home() {
       if (finalPendingBalance !== null) {
         setBalance(finalPendingBalance);
       }
-      
+
       // Set a timer to redirect to home page after 5 seconds
       const redirectTimer = setTimeout(() => {
         // Reset card authentication state
@@ -151,17 +192,14 @@ export default function Home() {
         setPendingBalance(null);
         // Show the card auth modal again
         setIsCardAuthModalOpen(true);
-        
-        console.log('Session completed - returning to card authentication');
+
+        console.log("Session completed - returning to card authentication");
       }, 5000);
-      
-      // Display a message about the redirect
-      setError('✅ Pumping completed. Returning to card authentication in 5 seconds...');
-      
+
       // Clean up timer if component unmounts
       return () => clearTimeout(redirectTimer);
     }
-    
+
     // Reset pending balance to match current balance
     setPendingBalance(balance);
   };
@@ -172,8 +210,8 @@ export default function Home() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-white">Kandutap 🚿</h1>
           <div className="flex gap-4">
-            <Link 
-              href="/topup" 
+            <Link
+              href="/topup"
               className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white transition-colors"
             >
               Top Up
@@ -181,7 +219,7 @@ export default function Home() {
           </div>
         </div>
 
-        {error && error.startsWith('✅') ? (
+        {error && error.startsWith("✅") ? (
           <div className="w-full max-w-md bg-green-500/20 text-green-100 px-4 py-3 rounded-xl">
             {error}
           </div>
@@ -190,19 +228,17 @@ export default function Home() {
             {error}
           </div>
         ) : null}
-        
-        <div className="w-full max-w-md space-y-8">
-          {balance !== null && (
-            <BalanceDisplay balance={balance} />
-          )}
 
-          <FlowMeter 
+        <div className="w-full max-w-md space-y-8">
+          {balance !== null && <BalanceDisplay balance={balance} />}
+
+          <FlowMeter
             isFlowing={isFlowing}
-            flowRate={flowRate} 
+            flowRate={flowRate}
             totalLiters={totalLiters}
             cost={lastPumpCost}
           />
-          <FlowControls 
+          <FlowControls
             isFlowing={isFlowing}
             onStart={handleStart}
             onStop={handleStop}
@@ -216,10 +252,11 @@ export default function Home() {
 
           {isCardAuthenticated && <PumpHistory cardId={currentCardId} />}
 
-          <CardAuthModal 
+          <CardAuthModal
             isOpen={isCardAuthModalOpen}
             onClose={() => setIsCardAuthModalOpen(false)}
             onSubmit={handleCardAuth}
+            error={error}
           />
         </div>
       </div>

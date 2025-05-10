@@ -46,6 +46,15 @@ export interface AdminStats {
     hour: string;
     count: number;
   }>;
+  cards?: Array<{
+    id: string;
+    balance: number;
+    status: string;
+    top_up_count: number;
+    pump_count: number;
+    created_at: string;
+    updated_at: string;
+  }>;
 }
 
 // Modal and form props
